@@ -1,0 +1,651 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Tue May  9 15:24:54 2023
+
+@author: avk256
+"""
+
+import xgboost as xgb
+from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier
+from sklearn import tree
+from tensorflow.keras.layers import Dense, Dropout, Activation, Flatten, BatchNormalization, LSTM, Reshape, Input, Lambda, Bidirectional, MaxPool2D
+from tensorflow.keras.callbacks import ModelCheckpoint, LearningRateScheduler, TensorBoard, EarlyStopping
+import math
+from tqdm import tqdm
+import pdb
+from sklearn.model_selection import StratifiedShuffleSplit
+import re
+import time
+import random
+import tensorflow_addons as tfa
+import tensorflow.keras as keras
+from tensorflow.keras import optimizers, Model
+from tensorflow.keras.utils import to_categorical
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, concatenate
+from tensorflow.keras.models import Sequential
+from tensorflow import keras
+import tensorflow_io as tfio
+import tensorflow_hub as hub
+import tensorflow as tf
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+from IPython import display
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import log_loss
+from sklearn.metrics import recall_score
+from sklearn.metrics import precision_score
+from sklearn.metrics import f1_score
+from sklearn.metrics import accuracy_score
+import wave
+import librosa.display
+import soundfile as sf
+import librosa
+import plotly.express as px
+import seaborn as sns
+import numpy as np  # linear algebra
+import pandas as pd  # data processing, CSV file I/O (e.g. pd.read_csv)
+import itertools
+from sklearn.metrics import classification_report
+from sklearn.model_selection import GridSearchCV
+
+from dask_ml.wrappers import Incremental
+from scikeras.wrappers import KerasClassifier
+
+import dask.dataframe as dd
+import dask.array as da
+
+
+import os
+
+from keras.optimizers import Adam
+from keras.utils import Sequence
+
+import pickle as cPickle
+
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+
+
+# import librosa for analysing audio signals : visualize audio, display the spectogram
+
+# import librosa for analysing audio signals : visualize audio, display the spectogram
+
+
+# import wav for reading and writing wav files
+
+# import IPython.dispaly for playing audio in Jupter notebook
+# import IPython.display as ipd
+
+
+tf.autograph.set_verbosity(3)
+
+###############################################################################
+
+
+def model_Dense(input_shape, n_clases=4, saved_file=None):
+    """
+    Dense model.
+
+    Parameters
+    ----------
+    input_shape : TYPE
+        DESCRIPTION.
+    n_clases : TYPE, optional
+        DESCRIPTION. The default is 4.
+    saved_file : TYPE, optional
+        DESCRIPTION. The default is None.
+
+    Returns
+    -------
+    model : TYPE
+        DESCRIPTION.
+
+    """
+    initializer = tf.keras.initializers.RandomNormal()
+    initializer = tf.keras.initializers.RandomUniform()
+    initializer = tf.keras.initializers.HeNormal()
+    initializer = tf.keras.initializers.HeUniform()
+    initializer = tf.keras.initializers.TruncatedNormal()
+    initializer = tf.keras.initializers.GlorotNormal()
+    initializer = tf.keras.initializers.GlorotUniform()
+    initializer = tf.keras.initializers.LecunNormal()
+    initializer = tf.keras.initializers.LecunUniform()
+
+    optim = tf.keras.optimizers.Adam()
+    optim = tf.keras.optimizers.Adadelta()
+    optim = tf.keras.optimizers.Adagrad()
+    optim = tf.keras.optimizers.Adamax()
+    optim = tf.keras.optimizers.Nadam()
+    optim = tf.keras.optimizers.SGD()
+    optim = tf.keras.optimizers.RMSprop()
+    optim = tf.keras.optimizers.Ftrl()
+
+    initializer = tf.random_normal_initializer(0, 0.03)
+    input_layer = Input(input_shape)
+
+    y = Flatten()(input_layer)
+    # y = Dense(512, kernel_initializer=initializer)(y)
+
+    y = Dense(128, kernel_initializer=initializer)(y)
+    y = Activation('relu')(y)
+    # y = BatchNormalization()(y)
+    # model.add(Dropout(0.25))
+
+    # y = Dense(128, kernel_initializer=initializer)(
+    #     y)  # input_shape=features.shape[1:]
+    # y = Activation('relu')(y)
+    # y = BatchNormalization()(y)
+
+    # y = Dense(128, kernel_initializer=initializer)(
+    #     y)  # input_shape=features.shape[1:]
+    # y = Activation('relu')(y)
+    # y = BatchNormalization()(y)
+    y = Dropout(0.25)(y)
+    y = Dense(n_clases, kernel_initializer=initializer)(y)
+    out = Activation('softmax')(y)
+    # sgd = optimizers.SGD(lr=0.1, decay=1e-3, momentum=1e-3)
+    model = Model(inputs=[input_layer], outputs=out,)
+
+    model.compile(loss='sparse_categorical_crossentropy',
+                  optimizer=optim,
+                  metrics=['accuracy', tf.keras.metrics.AUC(name='auc', multi_label=True)])
+    # tf.keras.utils.plot_model(model, to_file='NN_model.jpg', show_shapes=True)
+    if (saved_file):
+        try:
+            # model.load_model(saved_file)
+            model.load_weights(saved_file)
+            print("Pesos cargados")
+        except:
+            print("No se puede cargar los pesos")
+
+    model.summary()
+    return model
+
+
+def model_Conv(lr=0.01, momentum=0.9):
+    """
+    Conv model.
+
+    Parameters
+    ----------
+    input_shape : TYPE
+        DESCRIPTION.
+    n_clases : TYPE, optional
+        DESCRIPTION. The default is 4.
+    saved_file : TYPE, optional
+        DESCRIPTION. The default is None.
+
+    Returns
+    -------
+    model : TYPE
+        DESCRIPTION.
+
+    """
+    input_shape = (1057792, )
+    n_clases = 4
+    initializer = tf.random_normal_initializer(0, 0.03)
+
+    initializer = tf.keras.initializers.RandomNormal()
+    initializer = tf.keras.initializers.RandomUniform()
+    initializer = tf.keras.initializers.HeNormal()
+    initializer = tf.keras.initializers.HeUniform()
+    initializer = tf.keras.initializers.TruncatedNormal()
+    initializer = tf.keras.initializers.GlorotNormal()
+    initializer = tf.keras.initializers.GlorotUniform()
+    initializer = tf.keras.initializers.LecunNormal()
+    initializer = tf.keras.initializers.LecunUniform()
+
+    optimizers = tf.keras.optimizers.Adam()
+    optimizers = tf.keras.optimizers.Adadelta()
+    optimizers = tf.keras.optimizers.Adagrad()
+    optimizers = tf.keras.optimizers.Adamax()
+    optimizers = tf.keras.optimizers.Nadam()
+    optimizers = tf.keras.optimizers.SGD()
+    optimizers = tf.keras.optimizers.RMSprop()
+    optimizers = tf.keras.optimizers.Ftrl()
+
+    input_layer = Input(input_shape)
+    model = Sequential()
+
+    # 1. LAYER
+    model.add(Conv2D(filters=32, kernel_size=(3, 3),
+              padding='Same', input_shape=input_shape))
+    model.add(BatchNormalization())
+    model.add(Activation("relu"))
+
+    # # 2. LAYER
+    # model.add(Conv2D(filters=32, kernel_size=(3, 3), padding='Same'))
+    # model.add(BatchNormalization())
+    # model.add(Activation("relu"))
+
+    # model.add(MaxPool2D(pool_size=(2, 2)))
+
+    # # 3. LAYER
+    # model.add(Conv2D(filters=64, kernel_size=(3, 3), padding='Same'))
+    # model.add(BatchNormalization())
+    # model.add(Activation("relu"))
+
+    # # 4. LAYER
+    # model.add(Conv2D(filters=64, kernel_size=(3, 3), padding='Same'))
+    # model.add(BatchNormalization())
+    # model.add(Activation("relu"))
+
+    model.add(MaxPool2D(pool_size=(2, 2)))
+
+    # FULLY CONNECTED LAYER
+    model.add(Flatten())
+    model.add(Dense(256))
+    model.add(BatchNormalization())
+    model.add(Activation("relu"))
+    model.add(Dropout(0.25))
+
+    # OUTPUT LAYER
+    model.add(Dense(n_clases, activation='softmax'))
+
+    model.summary()
+    model.compile(loss='categorical_crossentropy',
+                  optimizer=optimizers.Adam(lr=1e-4),
+                  metrics=['accuracy', tf.keras.metrics.AUC(name='auc', multi_label=True)])
+
+    return model
+
+
+def model_Dense(lr=0.01, momentum=0.9):
+    """
+    Dense model.
+
+    Parameters
+    ----------
+    input_shape : TYPE
+        DESCRIPTION.
+    n_clases : TYPE, optional
+        DESCRIPTION. The default is 4.
+    saved_file : TYPE, optional
+        DESCRIPTION. The default is None.
+
+    Returns
+    -------
+    model : TYPE
+        DESCRIPTION.
+
+    """
+    input_shape = (1057792, )
+    n_clases = 4
+    saved_file = None
+    initializer = tf.keras.initializers.RandomNormal()
+    initializer = tf.keras.initializers.RandomUniform()
+    initializer = tf.keras.initializers.HeNormal()
+    initializer = tf.keras.initializers.HeUniform()
+    initializer = tf.keras.initializers.TruncatedNormal()
+    initializer = tf.keras.initializers.GlorotNormal()
+    initializer = tf.keras.initializers.GlorotUniform()
+    initializer = tf.keras.initializers.LecunNormal()
+    initializer = tf.keras.initializers.LecunUniform()
+
+    optim = tf.keras.optimizers.Adam()
+    optim = tf.keras.optimizers.Adadelta()
+    optim = tf.keras.optimizers.Adagrad()
+    optim = tf.keras.optimizers.Adamax()
+    optim = tf.keras.optimizers.Nadam()
+    optim = tf.keras.optimizers.SGD()
+    optim = tf.keras.optimizers.RMSprop()
+    optim = tf.keras.optimizers.Ftrl()
+
+    initializer = tf.random_normal_initializer(0, 0.03)
+    input_layer = Input(input_shape)
+
+    y = Flatten()(input_layer)
+    # y = Dense(512, kernel_initializer=initializer)(y)
+
+    y = Dense(128, kernel_initializer=initializer)(y)
+    y = Activation('relu')(y)
+    # y = BatchNormalization()(y)
+    # model.add(Dropout(0.25))
+
+    # y = Dense(128, kernel_initializer=initializer)(
+    #     y)  # input_shape=features.shape[1:]
+    # y = Activation('relu')(y)
+    # y = BatchNormalization()(y)
+
+    # y = Dense(128, kernel_initializer=initializer)(
+    #     y)  # input_shape=features.shape[1:]
+    # y = Activation('relu')(y)
+    # y = BatchNormalization()(y)
+    y = Dropout(0.25)(y)
+    y = Dense(n_clases, kernel_initializer=initializer)(y)
+    out = Activation('softmax')(y)
+    # sgd = optimizers.SGD(lr=0.1, decay=1e-3, momentum=1e-3)
+    model = Model(inputs=[input_layer], outputs=out,)
+
+    model.compile(loss='sparse_categorical_crossentropy',
+                  optimizer=optim,
+                  metrics=['accuracy', tf.keras.metrics.AUC(name='auc', multi_label=True)])
+    # tf.keras.utils.plot_model(model, to_file='NN_model.jpg', show_shapes=True)
+    if (saved_file):
+        try:
+            # model.load_model(saved_file)
+            model.load_weights(saved_file)
+            print("Pesos cargados")
+        except:
+            print("No se puede cargar los pesos")
+
+    model.summary()
+    return model
+
+
+def convert_to_array(lst):
+    result = []
+    for item in lst:
+        arr = np.array(item)
+        result.append(arr)
+    return result
+
+
+a = '[[1 2 3], [4 5 6], [7 8 9]]'
+
+b = np.array(a)
+
+convert_to_array(a)
+
+
+def df_reshape(x, y):
+    """
+    Reshape data for ANN.
+
+    Parameters
+    ----------
+    x : TYPE
+        DESCRIPTION.
+    y : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    x_tr : TYPE
+        DESCRIPTION.
+    y_tr : TYPE
+        DESCRIPTION.
+
+    """
+
+    def srt2nparray(string_array):
+        """
+        Convert string array to numpy array
+
+        Parameters
+        ----------
+        string_array : TYPE
+            DESCRIPTION.
+        shape : TYPE
+            DESCRIPTION.
+
+        Returns
+        -------
+        None.
+
+        """
+        shape = (1033, 1024)
+        cleaned_string = string_array.replace(
+            '[', '').replace(']', '')  # Видалення зайвих символів
+
+        numpy_array = np.fromstring(cleaned_string, sep=' ')
+        numpy_array = numpy_array.reshape(shape)
+        return numpy_array
+
+    tmp = srt2nparray(x[0])
+
+    x_tr = list(map(srt2nparray, list(x)))
+    x_tr_stack = np.stack(x_tr, axis=0)
+
+    y_tr = np.array(y)
+
+    y_tr = keras.utils.to_categorical(y_tr, num_classes=4, dtype='float32')
+    return x_tr_stack, y_tr
+
+
+def plot_history(history):
+    """
+    Plot learning history.
+
+    Parameters
+    ----------
+    history : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    None.
+
+    """
+    acc = history.history['auc']
+    val_acc = history.history['val_auc']
+    loss = history.history['loss']
+    val_loss = history.history['val_loss']
+    epochs = range(1, len(acc) + 1)
+    plt.plot(epochs, acc, label='Training auc')
+    plt.plot(epochs, val_acc, label='Validation auc')
+    plt.title('Training and validation accuracy')
+    plt.legend()
+    plt.figure()
+    plt.plot(epochs, loss, label='Training loss')
+    plt.plot(epochs, val_loss, label='Validation loss')
+    plt.title('Training and validation loss')
+    plt.legend()
+    plt.show()
+
+
+# GENERATOR
+
+class DataGenerator(Sequence):
+    def __init__(self, batch_size, mode, model_type):
+        self.mode = mode
+        self.batch_size = batch_size
+        self.data_file = self.mode + '_data.csv'
+        self.model_type = model_type
+
+    def __len__(self):
+
+        return int(np.ceil(self.num_samples / float(self.batch_size)))
+
+    def __getitem__(self, idx):
+        batch_x, batch_y = self.load_batch_data(idx)
+        # batch_x, batch_y = self.process_batch_data(batch_data)
+        return batch_x, batch_y
+
+    def get_num_samples(self):
+        # Розрахунок загальної кількості зразків у файлі даних
+        # Залежно від формату вашого файлу даних, вам може знадобитися
+        # розрахувати цю кількість передову.
+        # data = pd.read_csv(self.mode + '_data.pkl')
+        # num_samples = len(data)
+        # del data
+        # return num_samples
+        pass
+
+    def load_batch_data(self, idx):
+        # Завантаження порції даних з файлу на жорсткому диску
+        # Використайте idx і batch_size для визначення потрібної частини даних
+        missed_row = list(range(idx * self.batch_size))
+        # batch_data = pd.read_csv(
+        #     self.mode + '_data.csv', skiprows=missed_row, nrows=self.batch_size)
+
+        data_x = open(self.mode + '_ym_data.pkl', 'rb')
+        data_y = open(self.mode + '_y_data.pkl', 'rb')
+
+        unpickler_x = cPickle.Unpickler(data_x)
+        unpickler_y = cPickle.Unpickler(data_y)
+
+        x_list = []
+        y_list = []
+        row_counter = 0
+        while True:
+            try:
+                x = unpickler_x.load()
+                y = unpickler_y.load()
+
+                row_counter = row_counter + 1
+                if (row_counter > len(missed_row)) and (row_counter < (len(missed_row) + self.batch_size)):
+                    x_list.append(x)
+                    y_list.append(y)
+                if (row_counter >= (len(missed_row) + self.batch_size)):
+                    break
+
+            except EOFError:
+                break
+
+        batch_x = np.stack(x_list, axis=0)
+        del x_list
+        batch_y = np.stack(y_list, axis=0)
+        del y_list
+        batch_y = keras.utils.to_categorical(
+            batch_y, num_classes=4, dtype='float32')
+
+        if self.model_type == "Dense":
+            batch_x = np.reshape(
+                batch_x, (batch_x.shape[0], batch_x.shape[1] * batch_x.shape[2]))
+        if self.model_type == "Conv":
+            batch_x = np.reshape(
+                batch_x, (batch_x.shape[0], batch_x.shape[1], batch_x.shape[2], 1))
+
+        self.num_samples = np.shape(batch_x)[0]
+
+        return batch_x, batch_y
+
+    def process_batch_data(self, batch_data):
+        # Обробка порції даних за необхідним форматом
+        # Повертає два масиви: batch_x (вхідні дані) і batch_y (мітки)
+        # batch_x, batch_y = df_reshape(batch_data['ym'], batch_data['y'])
+        # print("batch_x.shape", batch_x.shape)
+        # return batch_x, batch_y
+        pass
+
+    def classes(self):
+
+        data_y = open(self.mode + '_y_data.pkl', 'rb')
+
+        unpickler_y = cPickle.Unpickler(data_y)
+
+        y_list = []
+
+        while True:
+            try:
+
+                y = unpickler_y.load()
+                y_list.append(y)
+
+            except EOFError:
+                break
+        y_labels = np.stack(y_list, axis=0)
+
+        if self.mode == 'test':
+            self.batch_size = len(y_labels)
+        self.num_samples = len(y_labels)
+
+        return y_labels
+
+
+# Створення генератора даних
+# data_file = "шлях_до_файлу_даних"
+batch_size = 16
+input_shape = (1033, 1024, 1)
+# input_shape = 1057792
+num_classes = 4
+model_type = 'Conv'
+
+generator = DataGenerator(batch_size, 'train', model_type)
+val_generator = DataGenerator(batch_size, 'val', model_type)
+test_generator = DataGenerator(batch_size, 'test', model_type)
+_ = generator.classes()
+_ = val_generator.classes()
+y_test = test_generator.classes()
+test_steps = len(y_test)
+
+initializer = tf.random_normal_initializer(0, 0.03)
+
+initializer = tf.keras.initializers.RandomNormal()
+initializer = tf.keras.initializers.RandomUniform()
+initializer = tf.keras.initializers.HeNormal()
+initializer = tf.keras.initializers.HeUniform()
+initializer = tf.keras.initializers.TruncatedNormal()
+initializer = tf.keras.initializers.GlorotNormal()
+initializer = tf.keras.initializers.GlorotUniform()
+initializer = tf.keras.initializers.LecunNormal()
+initializer = tf.keras.initializers.LecunUniform()
+
+optimizers = tf.keras.optimizers.Adam()
+optimizers = tf.keras.optimizers.Adadelta()
+optimizers = tf.keras.optimizers.Adagrad()
+optimizers = tf.keras.optimizers.Adamax()
+optimizers = tf.keras.optimizers.Nadam()
+optimizers = tf.keras.optimizers.SGD()
+optimizers = tf.keras.optimizers.RMSprop()
+optimizers = tf.keras.optimizers.Ftrl()
+
+input_layer = Input(input_shape)
+
+
+# Створення моделі
+model = Sequential()
+
+# 1. LAYER
+model.add(Conv2D(filters=4, kernel_size=(3, 3),
+          padding='Same', input_shape=input_shape))
+model.add(BatchNormalization())
+model.add(Activation("relu"))
+
+model.add(MaxPool2D(pool_size=(2, 2)))
+
+# # 2. LAYER
+model.add(Conv2D(filters=10, kernel_size=(3, 3), padding='Same'))
+model.add(BatchNormalization())
+model.add(Activation("relu"))
+
+# model.add(MaxPool2D(pool_size=(2, 2)))
+
+# # 3. LAYER
+# model.add(Conv2D(filters=64, kernel_size=(3, 3), padding='Same'))
+# model.add(BatchNormalization())
+# model.add(Activation("relu"))
+
+# # 4. LAYER
+# model.add(Conv2D(filters=64, kernel_size=(3, 3), padding='Same'))
+# model.add(BatchNormalization())
+# model.add(Activation("relu"))
+
+model.add(MaxPool2D(pool_size=(2, 2)))
+
+# FULLY CONNECTED LAYER
+model.add(Flatten())
+model.add(Dense(256))
+# model.add(BatchNormalization())
+model.add(Activation("relu"))
+# model.add(Dropout(0.25))
+
+# OUTPUT LAYER
+model.add(Dense(num_classes, activation='softmax'))
+
+model.summary()
+
+# Компіляція моделі
+model.compile(loss='categorical_crossentropy',
+              optimizer=Adam(), metrics=['accuracy'])
+
+
+# Навчання моделі з використанням генератора даних
+
+hist = model.fit(generator, epochs=10, validation_data=val_generator,
+                 workers=-1, verbose=1)
+
+
+predictions = model.predict_generator(test_generator)
+
+y_pred = np.concatenate(predictions)
+
+y_pred1 = np.argmax(y_pred, axis=1)
+
+# plot_history(history)
+
+target_names = ['class 0', 'class 1', 'class 2', 'class 3']
+print(classification_report(y_test, y_pred1, target_names=target_names))
